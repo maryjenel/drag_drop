@@ -33,6 +33,8 @@ class ListViewController: UIViewController {
         let readyForDeploy = Section.init("Ready for Deploy", textItems: ["Add ability to add labels to stories"])
         self.sections = [backLog, readyForDev, readyForReview, readyForDeploy]
         self.collectionView.reloadData()
+        collectionView.dragDelegate = self
+        collectionView.dropDelegate = self
     
     }
    
@@ -44,6 +46,8 @@ extension ListViewController : UICollectionViewDelegate, UICollectionViewDataSou
         let section = self.sections[indexPath.row]
         cell.configureForSection(section)
         cell.delegate = self
+        cell.collectionView.dragDelegate = self
+        cell.collectionView.dropDelegate = self
         return cell
     }
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
@@ -54,32 +58,44 @@ extension ListViewController : UICollectionViewDelegate, UICollectionViewDataSou
     }
 }
 
+extension ListViewController {
+    func textItem(for indexPath: IndexPath, collectionView: UICollectionView) -> String {
+        let textCell = collectionView.cellForItem(at: indexPath) as! TextCell
+        return textCell.titleLabel.text!
+    }
+    func cardPath(for indexPath: IndexPath, collectionView: UICollectionView) -> CardPath {
+        let textCell = collectionView.cellForItem(at: indexPath) as! TextCell
+        let cardPath = CardPath.init(indexPath: indexPath, title: textCell.titleLabel.text!)
+        return cardPath
+    }
+ }
+
 extension ListViewController : UICollectionViewDragDelegate, UICollectionViewDropDelegate, DragCellDelegate {
     func collectionView(_ collectionView: UICollectionView, itemsForBeginning session: UIDragSession, at indexPath: IndexPath) -> [UIDragItem] {
-        let item = self.sections[indexPath.row]
-        let itemProvider = NSItemProvider(object: item.title as NSString)
+        let cardPath = self.cardPath(for: indexPath, collectionView: collectionView)
+        let itemProvider = NSItemProvider(object: cardPath.title as NSString)
         let dragItem = UIDragItem(itemProvider: itemProvider)
-        dragItem.localObject = item
+        dragItem.localObject = cardPath
         return [dragItem]
     }
-    func collectionView(_ collectionView: UICollectionView, dropSessionDidUpdate session: UIDropSession, withDestinationIndexPath destinationIndexPath: IndexPath?) -> UICollectionViewDropProposal
-    {
-        if session.localDragSession != nil
-        {
-            if collectionView.hasActiveDrag
-            {
-                return UICollectionViewDropProposal(operation: .move, intent: .insertAtDestinationIndexPath)
-            }
-            else
-            {
-                return UICollectionViewDropProposal(operation: .move, intent: .insertAtDestinationIndexPath)
-            }
-        }
-        else
-        {
-            return UICollectionViewDropProposal(operation: .forbidden)
-        }
-    }
+//    func collectionView(_ collectionView: UICollectionView, dropSessionDidUpdate session: UIDropSession, withDestinationIndexPath destinationIndexPath: IndexPath?) -> UICollectionViewDropProposal
+//    {
+//        if session.localDragSession != nil
+//        {
+//            if collectionView.hasActiveDrag
+//            {
+//                return UICollectionViewDropProposal(operation: .move, intent: .insertAtDestinationIndexPath)
+//            }
+//            else
+//            {
+//                return UICollectionViewDropProposal(operation: .move, intent: .insertAtDestinationIndexPath)
+//            }
+//        }
+//        else
+//        {
+//            return UICollectionViewDropProposal(operation: .forbidden)
+//        }
+//    }
     func collectionView(_ collectionView: UICollectionView, canHandle session: UIDropSession) -> Bool
     {
         return session.canLoadObjects(ofClass: NSString.self)
@@ -87,39 +103,65 @@ extension ListViewController : UICollectionViewDragDelegate, UICollectionViewDro
 
     func collectionView(_ collectionView: UICollectionView, performDropWith coordinator: UICollectionViewDropCoordinator) {
         
-        guard let destinationIndexPath = coordinator.destinationIndexPath else { return }
         let destinationIP: IndexPath
-        let destinationSection = self.sections[destinationIndexPath.row]
-        coordinator.items.forEach({ item in
-            if let model = item.dragItem.localObject as? String {
-            destinationSection.textItems.append(model)
-            
-            }
-        })
+      
 
         
-        switch coordinator.proposal.operation
-        {
-        case .move:
-            let sectionCell = self.collectionView.cellForItem(at: destinationIndexPath)
-            if let indexPath = coordinator.destinationIndexPath {
-                destinationIP = indexPath
-            } else {
-                // Get last index path of collection view.
-                let section = collectionView.numberOfSections - 1
-                let row = collectionView.numberOfItems(inSection: section)
-                destinationIP = IndexPath(row: row, section: section)
-                sectionCell?.reloadInputViews()
-            }
+//        switch coordinator.proposal.operation
+//        {
+//        case .move:
+        
+        //destination
+            guard let destinationIndexPath = coordinator.destinationIndexPath else { return }
+            let sectionCell = self.collectionView.cellForItem(at: destinationIndexPath) as! SectionCell
+            let destinationSection = self.sections[destinationIndexPath.row]
+            coordinator.items.forEach({ item in
+                if let cardPath = item.dragItem.cardPath {
+                    let sourceIndexPath = cardPath.indexPath
+                    let sourceSection = self.sections[sourceIndexPath.row]
+                    sourceSection.textItems.remove(at: sourceIndexPath.row)
+                    destinationSection.textItems.append(cardPath.title)
+
+                }
+
+            })
+//source
+        
+        self.collectionView.reloadData()
+//            if let indexPath = coordinator.destinationIndexPath {
+//                destinationIP = indexPath
+//            } else {
+//                // Get last index path of collection view.
+//                let section = collectionView.numberOfSections - 1
+//                let row = collectionView.numberOfItems(inSection: section)
+//                destinationIP = IndexPath(row: row, section: section)
+//            }
 //            self.reorderItems(coordinator: coordinator, destinationIndexPath:destinationIP, collectionView: collectionView)
-            break
-            
-        case .copy:
-            break
-            
-        default:
-            return
-        }
+//            break
+//            
+//        case .copy:
+//            guard let destinationIndexPath = coordinator.destinationIndexPath else { return }
+//            let sectionCell = self.collectionView.cellForItem(at: destinationIndexPath)
+//            let destinationSection = self.sections[destinationIndexPath.row]
+//            coordinator.items.forEach({ item in
+//                if let model = item.dragItem.localObject as? String {
+//                    destinationSection.textItems.append(model)
+//                    
+//                }
+//            })
+//            if let indexPath = coordinator.destinationIndexPath {
+//                destinationIP = indexPath
+//            } else {
+//                // Get last index path of collection view.
+//                let section = collectionView.numberOfSections - 1
+//                let row = collectionView.numberOfItems(inSection: section)
+//                destinationIP = IndexPath(row: row, section: section)
+//                sectionCell?.reloadInputViews()
+//            }
+//            
+//        default:
+//            return
+//        }
     }
     func reorderItems(_ coordinator: UICollectionViewDropCoordinator, destinationIndexPath:IndexPath, collectionView: UICollectionView) {
         let sectionCell = self.collectionView.cellForItem(at: destinationIndexPath)
@@ -162,6 +204,22 @@ extension ListViewController : UICollectionViewDragDelegate, UICollectionViewDro
 //            coordinator.drop(items.first!.dragItem, toItemAt: dIndexPath)
 //        }
 
+    
+}
+
+struct CardPath {
+    let indexPath: IndexPath
+    let title: String
+}
+extension UIDragItem {
+    
+    var textItem: String? {
+      return localObject as? String
+    }
+    
+    var cardPath: CardPath? {
+        return localObject as? CardPath
+    }
     
 }
 
